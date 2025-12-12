@@ -20,7 +20,24 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Coordinates } from '../utils/gps';
+import { Coordinates, calculateDistance } from '../utils/gps';
+
+/**
+ * Position reading with accuracy for smoothing
+ */
+interface PositionReading {
+  coords: Coordinates;
+  accuracy: number;
+  timestamp: number;
+}
+
+/**
+ * Best reading result from multi-sample capture
+ */
+export interface BestReadingResult {
+  coords: Coordinates;
+  accuracy: number;
+}
 
 /**
  * Type definitions for the hook's return value
@@ -45,6 +62,8 @@ interface GeolocationHook extends GeolocationState {
   stopTracking: () => void;
   /** Get current position once (one-shot) */
   getCurrentPosition: () => Promise<Coordinates | null>;
+  /** Get best reading from multiple samples */
+  getBestReading: (numSamples?: number) => Promise<BestReadingResult | null>;
 }
 
 /**
@@ -75,13 +94,17 @@ function getErrorMessage(error: GeolocationPositionError): string {
   }
 }
 
+// Configuration for position smoothing
+const POSITION_BUFFER_SIZE = 5;
+const MOVEMENT_THRESHOLD_FACTOR = 0.5; // Only update if moved more than 50% of accuracy
+
 /**
- * Custom hook for geolocation access
+ * Custom hook for geolocation access with position smoothing
  * 
  * @returns GeolocationHook object with position data and control functions
  * 
  * USAGE:
- * const { position, error, isTracking, startTracking, stopTracking } = useGeolocation();
+ * const { position, error, isTracking, startTracking, stopTracking, getBestReading } = useGeolocation();
  */
 export function useGeolocation(): GeolocationHook {
   // State for position and status
@@ -94,19 +117,77 @@ export function useGeolocation(): GeolocationHook {
   // Ref to store the watch ID for cleanup
   const watchIdRef = useRef<number | null>(null);
   
+  // Buffer for position smoothing
+  const positionBufferRef = useRef<PositionReading[]>([]);
+  const lastReportedPositionRef = useRef<Coordinates | null>(null);
+  
   /**
-   * Success callback for geolocation updates
-   * Updates position state with new coordinates
+   * Calculate weighted average position from buffer
+   * Positions with better accuracy get higher weight
+   */
+  const calculateSmoothedPosition = useCallback((buffer: PositionReading[]): { coords: Coordinates; accuracy: number } | null => {
+    if (buffer.length === 0) return null;
+    
+    // Weight by inverse of accuracy (lower accuracy value = more accurate = higher weight)
+    let totalWeight = 0;
+    let weightedLat = 0;
+    let weightedLng = 0;
+    let bestAccuracy = Infinity;
+    
+    for (const reading of buffer) {
+      const weight = 1 / reading.accuracy;
+      totalWeight += weight;
+      weightedLat += reading.coords.latitude * weight;
+      weightedLng += reading.coords.longitude * weight;
+      bestAccuracy = Math.min(bestAccuracy, reading.accuracy);
+    }
+    
+    return {
+      coords: {
+        latitude: weightedLat / totalWeight,
+        longitude: weightedLng / totalWeight,
+      },
+      accuracy: bestAccuracy,
+    };
+  }, []);
+
+  /**
+   * Success callback for geolocation updates with smoothing
+   * Buffers positions and only updates if significant movement detected
    */
   const handleSuccess = useCallback((pos: GeolocationPosition) => {
-    setPosition({
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-    });
-    setAccuracy(pos.coords.accuracy);
+    const newReading: PositionReading = {
+      coords: {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      },
+      accuracy: pos.coords.accuracy,
+      timestamp: pos.timestamp,
+    };
+    
+    // Add to buffer, keeping only last N readings
+    positionBufferRef.current.push(newReading);
+    if (positionBufferRef.current.length > POSITION_BUFFER_SIZE) {
+      positionBufferRef.current.shift();
+    }
+    
+    // Calculate smoothed position
+    const smoothed = calculateSmoothedPosition(positionBufferRef.current);
+    if (!smoothed) return;
+    
+    // Check if we should update (either first reading or significant movement)
+    const lastPos = lastReportedPositionRef.current;
+    const movementThreshold = pos.coords.accuracy * MOVEMENT_THRESHOLD_FACTOR;
+    
+    if (!lastPos || calculateDistance(lastPos, smoothed.coords) > movementThreshold) {
+      setPosition(smoothed.coords);
+      setAccuracy(smoothed.accuracy);
+      lastReportedPositionRef.current = smoothed.coords;
+    }
+    
     setError(null);
     setIsLoading(false);
-  }, []);
+  }, [calculateSmoothedPosition]);
   
   /**
    * Error callback for geolocation failures
@@ -160,7 +241,7 @@ export function useGeolocation(): GeolocationHook {
   
   /**
    * Get current position once (one-shot request)
-   * Useful for saving car location
+   * Useful for quick position checks
    * 
    * @returns Promise resolving to coordinates or null on error
    */
@@ -193,6 +274,71 @@ export function useGeolocation(): GeolocationHook {
       );
     });
   }, [handleError]);
+
+  /**
+   * Get best reading from multiple GPS samples
+   * Takes N readings and returns the one with best accuracy
+   * 
+   * @param numSamples Number of readings to take (default 3)
+   * @returns Promise resolving to best reading or null on error
+   */
+  const getBestReading = useCallback(async (numSamples: number = 3): Promise<BestReadingResult | null> => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return null;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    const readings: PositionReading[] = [];
+    
+    // Take multiple readings with a delay between each
+    for (let i = 0; i < numSamples; i++) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, GEO_OPTIONS);
+        });
+        
+        readings.push({
+          coords: {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          },
+          accuracy: pos.coords.accuracy,
+          timestamp: pos.timestamp,
+        });
+        
+        // Small delay between readings (except last one)
+        if (i < numSamples - 1) {
+          await new Promise(r => setTimeout(r, 800));
+        }
+      } catch (err) {
+        // If one reading fails, continue with others
+        console.warn('[Geolocation] Sample failed:', err);
+      }
+    }
+    
+    setIsLoading(false);
+    
+    if (readings.length === 0) {
+      setError('Failed to get any GPS readings.');
+      return null;
+    }
+    
+    // Find reading with best accuracy
+    const bestReading = readings.reduce((best, current) => 
+      current.accuracy < best.accuracy ? current : best
+    );
+    
+    setPosition(bestReading.coords);
+    setAccuracy(bestReading.accuracy);
+    
+    return {
+      coords: bestReading.coords,
+      accuracy: bestReading.accuracy,
+    };
+  }, []);
   
   /**
    * Cleanup effect
@@ -215,5 +361,6 @@ export function useGeolocation(): GeolocationHook {
     startTracking,
     stopTracking,
     getCurrentPosition,
+    getBestReading,
   };
 }

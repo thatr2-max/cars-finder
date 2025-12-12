@@ -107,8 +107,13 @@ export function CarFinder() {
     isLoading: isGeoLoading,
     startTracking,
     stopTracking,
-    getCurrentPosition,
+    getBestReading,
   } = useGeolocation();
+  
+  /**
+   * Track if user has entered arrival zone (for one-time celebration)
+   */
+  const [hasArrived, setHasArrived] = useState(false);
   
   /**
    * Device orientation hook for compass heading
@@ -202,30 +207,62 @@ export function CarFinder() {
     ? getCardinalDirection(bearingToCar)
     : '';
   
+  /**
+   * Determine arrival zone status
+   * - Under 5m: You found it!
+   * - Under 15m: You're close
+   * - Otherwise: Show distance normally
+   */
+  const arrivalStatus = distanceMeters !== null
+    ? distanceMeters < 5
+      ? 'found'
+      : distanceMeters < 15
+        ? 'close'
+        : 'navigating'
+    : 'navigating';
+
+  /**
+   * Arrival detection - trigger celebration when first entering arrival zone
+   */
+  useEffect(() => {
+    if (distanceMeters !== null && distanceMeters < 5 && !hasArrived && mode === 'find') {
+      setHasArrived(true);
+      // Celebration haptic pattern
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100, 50, 200]);
+      }
+    }
+    // Reset arrived state when leaving find mode
+    if (mode === 'set') {
+      setHasArrived(false);
+    }
+  }, [distanceMeters, hasArrived, mode]);
+  
   // =========================================================================
   // EVENT HANDLERS
   // =========================================================================
   
   /**
-   * Handle saving car location
+   * Handle saving car location with best-reading capture
    * 
-   * 1. Captures current GPS position
-   * 2. Stores in localStorage with timestamp
-   * 3. Updates UI state
-   * 4. Shows confirmation toast
+   * 1. Takes multiple GPS readings
+   * 2. Selects the one with best accuracy
+   * 3. Stores in localStorage with timestamp and accuracy
+   * 4. Shows confirmation toast with precision info
    */
   const handleSaveLocation = useCallback(async () => {
     setIsSaving(true);
     
     try {
-      const coords = await getCurrentPosition();
+      // Take 3 readings and pick the best one
+      const bestReading = await getBestReading(3);
       
-      if (coords) {
+      if (bestReading) {
         const location: SavedLocation = {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
+          latitude: bestReading.coords.latitude,
+          longitude: bestReading.coords.longitude,
           timestamp: Date.now(),
-          accuracy: accuracy ?? undefined,
+          accuracy: bestReading.accuracy,
         };
         
         const saved = saveCarLocation(location);
@@ -236,8 +273,9 @@ export function CarFinder() {
           if ('vibrate' in navigator) {
             navigator.vibrate([50, 30, 50]);
           }
+          const accuracyFeet = Math.round(bestReading.accuracy * 3.28084);
           toast.success('Car location saved!', {
-            description: `Saved at ${formatTimestamp(location.timestamp)}`,
+            description: `Precision: ±${accuracyFeet}ft`,
           });
         } else {
           toast.error('Failed to save location', {
@@ -253,7 +291,7 @@ export function CarFinder() {
     } finally {
       setIsSaving(false);
     }
-  }, [getCurrentPosition, accuracy]);
+  }, [getBestReading]);
   
   /**
    * Handle starting navigation mode
@@ -428,60 +466,87 @@ export function CarFinder() {
         ) : (
           /* ===== FIND MODE - NAVIGATION ===== */
           <div className="flex flex-col items-center gap-6 animate-scale-in">
-            {/* Arrow pointing to car */}
-            <Arrow rotation={arrowRotation} isActive={isTracking} />
-            
-            {/* Distance display */}
-            <div className="text-center">
-              <div className="flex items-baseline justify-center gap-2">
-                <span className="text-6xl font-bold text-foreground text-glow tabular-nums">
-                  {formattedDistance.value}
-                </span>
-                <span className="text-2xl text-muted-foreground">
-                  {formattedDistance.unit}
-                </span>
+            {/* Arrival Zone Display */}
+            {arrivalStatus === 'found' ? (
+              <div className="flex flex-col items-center gap-4 animate-scale-in">
+                <div className="w-32 h-32 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center animate-pulse">
+                  <Check className="w-16 h-16 text-primary" />
+                </div>
+                <h2 className="text-3xl font-bold text-primary text-glow">You found it!</h2>
+                <p className="text-muted-foreground text-center">
+                  Your car should be right here
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                {cardinalDirection && `Head ${cardinalDirection}`}
-                {!useSimpleMode && compassHeading !== null && (
-                  <span className="ml-2 text-primary/70">
-                    • Compass active
-                  </span>
-                )}
-              </p>
-            </div>
+            ) : arrivalStatus === 'close' ? (
+              <div className="flex flex-col items-center gap-4">
+                <Arrow rotation={arrowRotation} isActive={isTracking} />
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold text-primary">Almost there!</h2>
+                  <p className="text-muted-foreground mt-1">
+                    Within ~{Math.round((distanceMeters ?? 0) * 3.28084)}ft
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Arrow pointing to car */}
+                <Arrow rotation={arrowRotation} isActive={isTracking} />
+                
+                {/* Distance display */}
+                <div className="text-center">
+                  <div className="flex items-baseline justify-center gap-2">
+                    <span className="text-6xl font-bold text-foreground text-glow tabular-nums">
+                      {formattedDistance.value}
+                    </span>
+                    <span className="text-2xl text-muted-foreground">
+                      {formattedDistance.unit}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {cardinalDirection && `Head ${cardinalDirection}`}
+                    {!useSimpleMode && compassHeading !== null && (
+                      <span className="ml-2 text-primary/70">
+                        • Compass active
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </>
+            )}
             
-            {/* Mode toggle */}
-            <Button
-              onClick={handleToggleMode}
-              variant="secondary"
-              size="sm"
-              className="rounded-full"
-            >
-              {useSimpleMode ? (
-                <>
-                  <Compass className="w-4 h-4 mr-2" />
-                  Use Compass Mode
-                </>
-              ) : (
-                <>
-                  <Map className="w-4 h-4 mr-2" />
-                  Use Simple Mode
-                </>
-              )}
-            </Button>
+            {/* Mode toggle - only show when not in arrival zone */}
+            {arrivalStatus === 'navigating' && (
+              <Button
+                onClick={handleToggleMode}
+                variant="secondary"
+                size="sm"
+                className="rounded-full"
+              >
+                {useSimpleMode ? (
+                  <>
+                    <Compass className="w-4 h-4 mr-2" />
+                    Use Compass Mode
+                  </>
+                ) : (
+                  <>
+                    <Map className="w-4 h-4 mr-2" />
+                    Use Simple Mode
+                  </>
+                )}
+              </Button>
+            )}
             
             {/* Compass error/warning */}
-            {compassError && !useSimpleMode && (
+            {compassError && !useSimpleMode && arrivalStatus === 'navigating' && (
               <p className="text-xs text-warning text-center max-w-xs">
                 {compassError}
               </p>
             )}
             
             {/* GPS accuracy indicator */}
-            {accuracy && (
+            {accuracy && arrivalStatus !== 'found' && (
               <p className="text-xs text-muted-foreground/70">
-                GPS accuracy: ±{Math.round(accuracy)}m
+                GPS: ±{Math.round(accuracy * 3.28084)}ft
               </p>
             )}
             
