@@ -88,11 +88,11 @@ export function CarMap({ carLocation, userLocation, accuracy }: CarMapProps) {
   }, [carLocation, userLocation]);
 
   return (
-    <div className="w-full h-64 rounded-xl overflow-hidden border border-border/50 shadow-lg">
+<div className="w-full h-64 rounded-xl overflow-hidden border border-border/50 shadow-lg" style={{ minHeight: '256px' }}>
       <MapContainer
         center={center}
         zoom={17}
-        className="w-full h-full"
+        style={{ width: '100%', height: '100%', minHeight: '256px' }}
         zoomControl={true}
         attributionControl={false}
       >
