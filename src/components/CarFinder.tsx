@@ -232,6 +232,10 @@ export function CarFinder() {
         
         if (saved) {
           setSavedLocation(location);
+          // Haptic feedback on successful save
+          if ('vibrate' in navigator) {
+            navigator.vibrate([50, 30, 50]);
+          }
           toast.success('Car location saved!', {
             description: `Saved at ${formatTimestamp(location.timestamp)}`,
           });
@@ -306,16 +310,23 @@ export function CarFinder() {
   }, [stopTracking, stopCompass]);
   
   /**
+   * Trigger haptic feedback if available
+   * Uses the Vibration API for tactile feedback on interactions
+   */
+  const triggerHaptic = useCallback((pattern: number | number[] = 50) => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(pattern);
+    }
+  }, []);
+
+  /**
    * Toggle between compass and simple mode
+   * No toast - just haptic feedback to avoid spam when quickly cycling
    */
   const handleToggleMode = useCallback(() => {
+    triggerHaptic(30);
     setUseSimpleMode(prev => !prev);
-    toast.info(useSimpleMode ? 'Compass mode enabled' : 'Simple mode enabled', {
-      description: useSimpleMode 
-        ? 'Arrow rotates as you turn' 
-        : 'Arrow shows direction to car (north-up)',
-    });
-  }, [useSimpleMode]);
+  }, [triggerHaptic]);
   
   // =========================================================================
   // RENDER
