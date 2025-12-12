@@ -24,6 +24,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Arrow } from './Arrow';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { useDeviceOrientation } from '../hooks/useDeviceOrientation';
@@ -41,6 +42,10 @@ import {
   getCarLocation,
   clearCarLocation,
 } from '../utils/storage';
+import {
+  showCarSavedNotification,
+  dismissCarNotification,
+} from '../utils/notifications';
 import { Button } from '@/components/ui/button';
 import { MapPin, Navigation, Trash2, Compass, Map, AlertTriangle, Check } from 'lucide-react';
 import { toast } from 'sonner';
@@ -134,16 +139,32 @@ export function CarFinder() {
   // =========================================================================
   
   /**
-   * Load saved location on component mount
+   * URL search params for deep linking from notifications
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  /**
+   * Load saved location on component mount and handle deep link
    * Checks localStorage for previously saved car location
+   * If ?action=find is present, auto-start navigation
    */
   useEffect(() => {
     const stored = getCarLocation();
     if (stored) {
       setSavedLocation(stored);
-      setMode('set'); // Keep in 'set' mode, user can switch to 'find'
+      
+      // Check for deep link from notification
+      const action = searchParams.get('action');
+      if (action === 'find') {
+        // Clear the query param to prevent re-triggering
+        setSearchParams({}, { replace: true });
+        // Auto-start navigation
+        handleStartNavigation();
+      } else {
+        setMode('set'); // Keep in 'set' mode, user can switch to 'find'
+      }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   /**
    * Auto-enable simple mode if compass is unavailable
@@ -277,6 +298,9 @@ export function CarFinder() {
           toast.success('Car location saved!', {
             description: `Precision: ±${accuracyFeet}ft`,
           });
+          
+          // Show persistent notification with "Find Car" action
+          showCarSavedNotification();
         } else {
           toast.error('Failed to save location', {
             description: 'Storage may be full or disabled.',
@@ -345,6 +369,9 @@ export function CarFinder() {
     stopCompass();
     setMode('set');
     toast.success('Location cleared');
+    
+    // Dismiss the notification
+    dismissCarNotification();
   }, [stopTracking, stopCompass]);
   
   /**
@@ -446,7 +473,7 @@ export function CarFinder() {
                 <Button
                   onClick={handleSaveLocation}
                   size="lg"
-                  className="h-24 w-72 text-xl font-semibold rounded-2xl shadow-glow-lg animate-pulse-glow"
+                  className="h-24 w-72 text-xl font-semibold rounded-2xl shadow-glow-lg"
                   disabled={isSaving || isGeoLoading}
                 >
                   <MapPin className="w-7 h-7 mr-3" />
