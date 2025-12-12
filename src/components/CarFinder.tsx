@@ -26,6 +26,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Arrow } from './Arrow';
+import { CarMap } from './CarMap';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { useDeviceOrientation } from '../hooks/useDeviceOrientation';
 import {
@@ -47,7 +48,7 @@ import {
   dismissCarNotification,
 } from '../utils/notifications';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, Trash2, Compass, Map, AlertTriangle, Check } from 'lucide-react';
+import { MapPin, Navigation, Trash2, Compass, Map as MapIcon, AlertTriangle, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
@@ -90,6 +91,12 @@ export function CarFinder() {
    * When false, arrow adjusts based on device compass heading
    */
   const [useSimpleMode, setUseSimpleMode] = useState<boolean>(false);
+  
+  /**
+   * Map view toggle
+   * When true, shows map instead of arrow
+   */
+  const [showMap, setShowMap] = useState<boolean>(false);
   
   /**
    * Loading state for location capture
@@ -392,6 +399,14 @@ export function CarFinder() {
     triggerHaptic(30);
     setUseSimpleMode(prev => !prev);
   }, [triggerHaptic]);
+
+  /**
+   * Toggle between map and arrow view
+   */
+  const handleToggleMap = useCallback(() => {
+    triggerHaptic(30);
+    setShowMap(prev => !prev);
+  }, [triggerHaptic]);
   
   // =========================================================================
   // RENDER
@@ -516,8 +531,16 @@ export function CarFinder() {
               </div>
             ) : (
               <>
-                {/* Arrow pointing to car */}
-                <Arrow rotation={arrowRotation} isActive={isTracking} />
+                {/* Map or Arrow view */}
+                {showMap && savedLocation ? (
+                  <CarMap
+                    carLocation={savedLocation}
+                    userLocation={position}
+                    accuracy={accuracy}
+                  />
+                ) : (
+                  <Arrow rotation={arrowRotation} isActive={isTracking} />
+                )}
                 
                 {/* Distance display */}
                 <div className="text-center">
@@ -531,7 +554,7 @@ export function CarFinder() {
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
                     {cardinalDirection && `Head ${cardinalDirection}`}
-                    {!useSimpleMode && compassHeading !== null && (
+                    {!useSimpleMode && compassHeading !== null && !showMap && (
                       <span className="ml-2 text-primary/70">
                         • Compass active
                       </span>
@@ -543,28 +566,53 @@ export function CarFinder() {
             
             {/* Mode toggle - only show when not in arrival zone */}
             {arrivalStatus === 'navigating' && (
-              <Button
-                onClick={handleToggleMode}
-                variant="secondary"
-                size="sm"
-                className="rounded-full"
-              >
-                {useSimpleMode ? (
-                  <>
-                    <Compass className="w-4 h-4 mr-2" />
-                    Use Compass Mode
-                  </>
-                ) : (
-                  <>
-                    <Map className="w-4 h-4 mr-2" />
-                    Use Simple Mode
-                  </>
+              <div className="flex gap-2">
+                {/* Map toggle */}
+                <Button
+                  onClick={handleToggleMap}
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-full"
+                >
+                  {showMap ? (
+                    <>
+                      <Navigation className="w-4 h-4 mr-2" />
+                      Show Arrow
+                    </>
+                  ) : (
+                    <>
+                      <MapIcon className="w-4 h-4 mr-2" />
+                      Show Map
+                    </>
+                  )}
+                </Button>
+                
+                {/* Compass/Simple mode toggle - only when arrow is shown */}
+                {!showMap && (
+                  <Button
+                    onClick={handleToggleMode}
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-full"
+                  >
+                    {useSimpleMode ? (
+                      <>
+                        <Compass className="w-4 h-4 mr-2" />
+                        Compass
+                      </>
+                    ) : (
+                      <>
+                        <MapIcon className="w-4 h-4 mr-2" />
+                        Simple
+                      </>
+                    )}
+                  </Button>
                 )}
-              </Button>
+              </div>
             )}
             
             {/* Compass error/warning */}
-            {compassError && !useSimpleMode && arrivalStatus === 'navigating' && (
+            {compassError && !useSimpleMode && !showMap && arrivalStatus === 'navigating' && (
               <p className="text-xs text-warning text-center max-w-xs">
                 {compassError}
               </p>
