@@ -1,96 +1,144 @@
+/**
+ * =============================================================================
+ * CAR FINDER PWA - DESIGN SYSTEM
+ * =============================================================================
+ * 
+ * A dark, futuristic theme inspired by automotive HUD displays.
+ * Uses electric blue (#00a8ff) as the primary accent against deep blacks.
+ * 
+ * Color Philosophy:
+ * - Deep black backgrounds for outdoor readability
+ * - Electric blue for interactive elements and the compass arrow
+ * - Cyan variations for secondary elements and glows
+ * - High contrast text for visibility in bright sunlight
+ * 
+ * All colors use HSL format for consistency with Tailwind/shadcn.
+ * =============================================================================
+ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* ===========================================
+     * BACKGROUND COLORS
+     * Deep blacks for the night-mode aesthetic
+     * =========================================== */
+    --background: 220 15% 3%;           /* Near-black with slight blue tint */
+    --foreground: 200 100% 98%;         /* Off-white for text */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Card surfaces - slightly elevated from background */
+    --card: 220 15% 6%;
+    --card-foreground: 200 100% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* Popover surfaces */
+    --popover: 220 15% 8%;
+    --popover-foreground: 200 100% 98%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* ===========================================
+     * PRIMARY - ELECTRIC BLUE
+     * The signature color for the compass arrow
+     * HSL: 200° 100% 50% = #00a8ff
+     * =========================================== */
+    --primary: 200 100% 50%;
+    --primary-foreground: 220 15% 3%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Primary glow effect for the arrow */
+    --primary-glow: 200 100% 60%;
+    --primary-deep: 200 100% 40%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* ===========================================
+     * SECONDARY - MUTED CYAN
+     * For secondary buttons and UI elements
+     * =========================================== */
+    --secondary: 200 30% 15%;
+    --secondary-foreground: 200 100% 90%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Muted elements */
+    --muted: 220 15% 12%;
+    --muted-foreground: 200 20% 60%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Accent - brighter cyan for highlights */
+    --accent: 190 100% 45%;
+    --accent-foreground: 220 15% 3%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* ===========================================
+     * FEEDBACK COLORS
+     * =========================================== */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    --success: 150 80% 45%;
+    --success-foreground: 150 80% 10%;
 
-    --sidebar-background: 0 0% 98%;
+    --warning: 40 90% 50%;
+    --warning-foreground: 40 90% 10%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* ===========================================
+     * BORDERS & INPUTS
+     * Subtle borders that don't distract
+     * =========================================== */
+    --border: 200 30% 20%;
+    --input: 200 30% 15%;
+    --ring: 200 100% 50%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    --radius: 0.75rem;
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    /* ===========================================
+     * CUSTOM DESIGN TOKENS
+     * Arrow-specific and animation values
+     * =========================================== */
+    --arrow-gradient-start: 200 100% 55%;
+    --arrow-gradient-end: 200 100% 40%;
+    --arrow-shadow: 200 100% 50%;
+    
+    /* Glow intensities */
+    --glow-weak: 0 0 20px hsl(200 100% 50% / 0.3);
+    --glow-medium: 0 0 40px hsl(200 100% 50% / 0.5);
+    --glow-strong: 0 0 60px hsl(200 100% 50% / 0.7);
 
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar variables (required by shadcn) */
+    --sidebar-background: 220 15% 5%;
+    --sidebar-foreground: 200 100% 98%;
+    --sidebar-primary: 200 100% 50%;
+    --sidebar-primary-foreground: 220 15% 3%;
+    --sidebar-accent: 200 30% 15%;
+    --sidebar-accent-foreground: 200 100% 90%;
+    --sidebar-border: 200 30% 20%;
+    --sidebar-ring: 200 100% 50%;
   }
 
+  /* Dark mode is the default, but we define it for consistency */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 220 15% 3%;
+    --foreground: 200 100% 98%;
+    --card: 220 15% 6%;
+    --card-foreground: 200 100% 98%;
+    --popover: 220 15% 8%;
+    --popover-foreground: 200 100% 98%;
+    --primary: 200 100% 50%;
+    --primary-foreground: 220 15% 3%;
+    --secondary: 200 30% 15%;
+    --secondary-foreground: 200 100% 90%;
+    --muted: 220 15% 12%;
+    --muted-foreground: 200 20% 60%;
+    --accent: 190 100% 45%;
+    --accent-foreground: 220 15% 3%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 30% 20%;
+    --input: 200 30% 15%;
+    --ring: 200 100% 50%;
+    --sidebar-background: 220 15% 5%;
+    --sidebar-foreground: 200 100% 98%;
+    --sidebar-primary: 200 100% 50%;
+    --sidebar-primary-foreground: 220 15% 3%;
+    --sidebar-accent: 200 30% 15%;
+    --sidebar-accent-foreground: 200 100% 90%;
+    --sidebar-border: 200 30% 20%;
+    --sidebar-ring: 200 100% 50%;
   }
 }
 
@@ -100,6 +148,94 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
+
+  /* Prevent overscroll bounce on mobile */
+  html, body {
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* =============================================================================
+ * CUSTOM UTILITY CLASSES
+ * Reusable animation and effect utilities
+ * ============================================================================= */
+
+@layer utilities {
+  /* Glowing text effect for important UI elements */
+  .text-glow {
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.5),
+                 0 0 20px hsl(var(--primary) / 0.3),
+                 0 0 40px hsl(var(--primary) / 0.2);
+  }
+
+  /* Subtle pulse animation for the arrow */
+  .animate-glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  /* Smooth rotation transition for the arrow */
+  .arrow-transition {
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Glass morphism effect for cards */
+  .glass {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Neon border effect */
+  .neon-border {
+    box-shadow: 0 0 5px hsl(var(--primary) / 0.5),
+                inset 0 0 5px hsl(var(--primary) / 0.1);
+  }
+}
+
+/* =============================================================================
+ * KEYFRAME ANIMATIONS
+ * ============================================================================= */
+
+@keyframes glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 40px hsl(var(--primary) / 0.9));
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Apply animations */
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
 }
