@@ -141,3 +141,39 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
+/**
+ * NOTIFICATION CLICK EVENT
+ * Handles clicks on push notifications and their action buttons.
+ * Opens the app and navigates to find mode when user taps "Find Car".
+ */
+self.addEventListener('notificationclick', (event) => {
+  console.log('[ServiceWorker] Notification clicked:', event.action);
+  
+  // Close the notification
+  event.notification.close();
+  
+  // Determine the URL to open
+  const urlToOpen = event.action === 'find' 
+    ? '/?action=find'
+    : '/';
+  
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Check if there's already a window open
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin)) {
+            // Focus existing window and navigate
+            return client.focus().then((focusedClient) => {
+              if (focusedClient) {
+                focusedClient.navigate(urlToOpen);
+              }
+            });
+          }
+        }
+        // No existing window, open a new one
+        return clients.openWindow(urlToOpen);
+      })
+  );
+});
