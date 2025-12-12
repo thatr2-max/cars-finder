@@ -509,7 +509,7 @@ export function CarFinder() {
           /* ===== FIND MODE - NAVIGATION ===== */
           <div className="flex flex-col items-center gap-6 animate-scale-in">
             {/* Arrival Zone Display */}
-            {arrivalStatus === 'found' ? (
+            {arrivalStatus === 'found' && hasArrived ? (
               <div className="flex flex-col items-center gap-4 animate-scale-in">
                 <div className="w-32 h-32 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center animate-pulse">
                   <Check className="w-16 h-16 text-primary" />
@@ -518,6 +518,14 @@ export function CarFinder() {
                 <p className="text-muted-foreground text-center">
                   Your car should be right here
                 </p>
+                <Button
+                  onClick={() => setHasArrived(false)}
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                >
+                  I'm not close to my car
+                </Button>
               </div>
             ) : arrivalStatus === 'close' ? (
               <div className="flex flex-col items-center gap-4">
