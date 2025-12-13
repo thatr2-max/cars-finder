@@ -583,8 +583,8 @@ export function CarFinder() {
               </>
             )}
             
-            {/* Mode toggle - only show when not in arrival zone */}
-            {arrivalStatus === 'navigating' && (
+            {/* Mode toggle - show in navigating and close modes */}
+            {(arrivalStatus === 'navigating' || arrivalStatus === 'close') && (
               <div className="flex gap-2">
                 {/* Map toggle */}
                 <Button
