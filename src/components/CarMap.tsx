@@ -1,19 +1,22 @@
 /**
  * =============================================================================
- * CAR MAP COMPONENT
+ * CAR MAP COMPONENT (Leaflet - direct integration)
  * =============================================================================
- * 
- * Leaflet + OpenStreetMap integration for visual car finding.
+ *
+ * Lightweight Leaflet + OpenStreetMap integration for visual car finding.
+ * We avoid react-leaflet here to prevent context/render issues and have
+ * full control over map lifecycle.
+ *
  * Shows:
  * - Car location as a red/orange pin
  * - User location as a pulsing blue dot
  * - Accuracy circle around user position
+ * - Auto-fit between car and user when both are available
  * =============================================================================
  */
 
-import { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import React, { useEffect, useMemo, useRef } from 'react';
+import L, { Map as LeafletMap, LayerGroup } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 interface CarMapProps {
@@ -49,92 +52,91 @@ const userIcon = L.divIcon({
   iconAnchor: [10, 10],
 });
 
-/**
- * Component to auto-fit map bounds to show both markers
- */
-function MapBoundsHandler({ 
-  carLocation, 
-  userLocation 
-}: { 
-  carLocation: CarMapProps['carLocation']; 
-  userLocation: CarMapProps['userLocation'];
-}) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (userLocation) {
-      const bounds = L.latLngBounds(
-        [carLocation.latitude, carLocation.longitude],
-        [userLocation.latitude, userLocation.longitude]
-      );
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
-    } else {
-      map.setView([carLocation.latitude, carLocation.longitude], 17);
-    }
-  }, [map, carLocation, userLocation]);
-
-  return null;
-}
-
 export function CarMap({ carLocation, userLocation, accuracy }: CarMapProps) {
-  const center = useMemo(() => {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const layersRef = useRef<LayerGroup | null>(null);
+
+  const center = useMemo<[number, number]>(() => {
     if (userLocation) {
       return [
         (carLocation.latitude + userLocation.latitude) / 2,
         (carLocation.longitude + userLocation.longitude) / 2,
-      ] as [number, number];
+      ];
     }
-    return [carLocation.latitude, carLocation.longitude] as [number, number];
+    return [carLocation.latitude, carLocation.longitude];
   }, [carLocation, userLocation]);
 
+  // Initialize map once
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      center,
+      zoom: 17,
+      zoomControl: true,
+      attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+    }).addTo(map);
+
+    const layers = L.layerGroup().addTo(map);
+
+    mapRef.current = map;
+    layersRef.current = layers;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      layersRef.current = null;
+    };
+  }, [center]);
+
+  // Update markers and view when locations change
+  useEffect(() => {
+    const map = mapRef.current;
+    const layers = layersRef.current;
+    if (!map || !layers) return;
+
+    layers.clearLayers();
+
+    // Car marker
+    const carLatLng = L.latLng(carLocation.latitude, carLocation.longitude);
+    L.marker(carLatLng, { icon: carIcon }).addTo(layers);
+
+    let bounds = L.latLngBounds(carLatLng, carLatLng);
+
+    // User marker + accuracy
+    if (userLocation) {
+      const userLatLng = L.latLng(userLocation.latitude, userLocation.longitude);
+      L.marker(userLatLng, { icon: userIcon }).addTo(layers);
+
+      if (accuracy) {
+        L.circle(userLatLng, {
+          radius: accuracy,
+          color: 'hsl(200, 100%, 50%)',
+          fillColor: 'hsl(200, 100%, 50%)',
+          fillOpacity: 0.15,
+          weight: 1,
+        }).addTo(layers);
+      }
+
+      bounds.extend(userLatLng);
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 18 });
+    } else {
+      map.setView(carLatLng, 17);
+    }
+  }, [carLocation, userLocation, accuracy]);
+
   return (
-<div className="w-full h-64 rounded-xl overflow-hidden border border-border/50 shadow-lg" style={{ minHeight: '256px' }}>
-      <MapContainer
-        center={center}
-        zoom={17}
-        style={{ width: '100%', height: '100%', minHeight: '256px' }}
-        zoomControl={true}
-        attributionControl={false}
-      >
-        {/* Dark-themed map tiles */}
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
-        
-        {/* Auto-fit bounds */}
-        <MapBoundsHandler carLocation={carLocation} userLocation={userLocation} />
-        
-        {/* Car marker */}
-        <Marker
-          position={[carLocation.latitude, carLocation.longitude]}
-          icon={carIcon}
-        />
-        
-        {/* User position and accuracy */}
-        {userLocation && (
-          <>
-            {/* Accuracy circle */}
-            {accuracy && (
-              <Circle
-                center={[userLocation.latitude, userLocation.longitude]}
-                radius={accuracy}
-                pathOptions={{
-                  color: 'hsl(200, 100%, 50%)',
-                  fillColor: 'hsl(200, 100%, 50%)',
-                  fillOpacity: 0.15,
-                  weight: 1,
-                }}
-              />
-            )}
-            
-            {/* User marker */}
-            <Marker
-              position={[userLocation.latitude, userLocation.longitude]}
-              icon={userIcon}
-            />
-          </>
-        )}
-      </MapContainer>
+    <div className="w-full h-64 rounded-xl overflow-hidden border border-border/50 shadow-lg" style={{ minHeight: '256px' }}>
+      <div
+        ref={mapContainerRef}
+        className="w-full h-full"
+        style={{ minHeight: '256px' }}
+      />
     </div>
   );
 }
