@@ -128,6 +128,12 @@ export function CarFinder() {
   const [hasArrived, setHasArrived] = useState(false);
   
   /**
+   * Track if user manually dismissed the arrival screen
+   * Prevents auto-arrival from re-triggering after user clicks "I'm not close"
+   */
+  const [dismissedArrival, setDismissedArrival] = useState(false);
+  
+  /**
    * Device orientation hook for compass heading
    * Provides the direction the device is facing
    */
@@ -253,7 +259,8 @@ export function CarFinder() {
    * Arrival detection - trigger celebration when first entering arrival zone
    */
   useEffect(() => {
-    if (distanceMeters !== null && distanceMeters < 5 && !hasArrived && mode === 'find') {
+    // Only auto-trigger arrival if user hasn't manually dismissed it
+    if (distanceMeters !== null && distanceMeters < 5 && !hasArrived && !dismissedArrival && mode === 'find') {
       setHasArrived(true);
       // Celebration haptic pattern
       if ('vibrate' in navigator) {
@@ -263,8 +270,9 @@ export function CarFinder() {
     // Reset arrived state when leaving find mode
     if (mode === 'set') {
       setHasArrived(false);
+      setDismissedArrival(false);
     }
-  }, [distanceMeters, hasArrived, mode]);
+  }, [distanceMeters, hasArrived, dismissedArrival, mode]);
   
   // =========================================================================
   // EVENT HANDLERS
@@ -519,7 +527,10 @@ export function CarFinder() {
                   Your car should be right here
                 </p>
                 <Button
-                  onClick={() => setHasArrived(false)}
+                  onClick={() => {
+                    setHasArrived(false);
+                    setDismissedArrival(true);
+                  }}
                   variant="outline"
                   size="sm"
                   className="mt-2"
