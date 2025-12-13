@@ -311,8 +311,18 @@ export function CarFinder() {
           }
           const accuracyFeet = Math.round(bestReading.accuracy * 3.28084);
           toast.success('Car location saved!', {
-            description: `Precision: ±${accuracyFeet}ft`,
+            description: `Precision: ±${accuracyFeet}ft • Caching map tiles...`,
           });
+          
+          // Pre-cache map tiles around the saved location for offline use
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'CACHE_TILES',
+              latitude: location.latitude,
+              longitude: location.longitude,
+              zoom: 17,
+            });
+          }
           
           // Show persistent notification with "Find Car" action
           showCarSavedNotification();
