@@ -131,11 +131,11 @@ export function CarMap({ carLocation, userLocation, accuracy }: CarMapProps) {
   }, [carLocation, userLocation, accuracy]);
 
   return (
-    <div className="w-full h-64 rounded-xl overflow-hidden border border-border/50 shadow-lg" style={{ minHeight: '256px' }}>
+    <div className="w-screen max-w-none -mx-4 sm:-mx-6 md:-mx-8 h-72 overflow-hidden border-y border-border/50 shadow-lg" style={{ minHeight: '288px' }}>
       <div
         ref={mapContainerRef}
         className="w-full h-full"
-        style={{ minHeight: '256px' }}
+        style={{ minHeight: '288px' }}
       />
     </div>
   );
