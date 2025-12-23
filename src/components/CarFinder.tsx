@@ -113,6 +113,13 @@ export function CarFinder() {
    */
   const [superPreciseEnabled, setSuperPreciseEnabled] = useState<boolean>(false);
   
+  /**
+   * Google-enhanced position for navigation (when Super Precise is enabled)
+   */
+  const [googlePosition, setGooglePosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [googleAccuracy, setGoogleAccuracy] = useState<number | null>(null);
+  const [isGooglePolling, setIsGooglePolling] = useState<boolean>(false);
+  
   // Load Super Precise Mode setting on mount
   useEffect(() => {
     setSuperPreciseEnabled(getSuperPreciseMode());
@@ -203,25 +210,72 @@ export function CarFinder() {
       setUseSimpleMode(true);
     }
   }, [isCompassAvailable, mode]);
+
+  /**
+   * Google Geolocation polling for real-time navigation
+   * Polls Google API every 3 seconds when in find mode with Super Precise enabled
+   */
+  useEffect(() => {
+    if (mode !== 'find' || !superPreciseEnabled || !savedLocation) {
+      setIsGooglePolling(false);
+      return;
+    }
+
+    setIsGooglePolling(true);
+    let isMounted = true;
+
+    const pollGoogleLocation = async () => {
+      if (!isMounted) return;
+      
+      try {
+        const result = await getGoogleGeolocation();
+        if (result && isMounted) {
+          setGooglePosition({ latitude: result.latitude, longitude: result.longitude });
+          setGoogleAccuracy(result.accuracy);
+        }
+      } catch (err) {
+        console.error('[CarFinder] Google polling error:', err);
+        // Don't spam errors, just silently fall back to GPS
+      }
+    };
+
+    // Initial fetch
+    pollGoogleLocation();
+
+    // Poll every 3 seconds
+    const intervalId = setInterval(pollGoogleLocation, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      setIsGooglePolling(false);
+    };
+  }, [mode, superPreciseEnabled, savedLocation]);
   
   // =========================================================================
   // CALCULATED VALUES
   // =========================================================================
   
   /**
+   * Use Google position when available and Super Precise is enabled, otherwise fall back to GPS
+   */
+  const effectivePosition = (superPreciseEnabled && googlePosition) ? googlePosition : position;
+  const effectiveAccuracy = (superPreciseEnabled && googleAccuracy !== null) ? googleAccuracy : accuracy;
+  
+  /**
    * Calculate distance to car in meters
    * Returns null if we don't have both positions
    */
-  const distanceMeters = position && savedLocation
-    ? calculateDistance(position, savedLocation)
+  const distanceMeters = effectivePosition && savedLocation
+    ? calculateDistance(effectivePosition, savedLocation)
     : null;
   
   /**
    * Calculate bearing (direction) to car
    * Returns angle in degrees from north (0-360)
    */
-  const bearingToCar = position && savedLocation
-    ? calculateBearing(position, savedLocation)
+  const bearingToCar = effectivePosition && savedLocation
+    ? calculateBearing(effectivePosition, savedLocation)
     : null;
   
   /**
@@ -639,8 +693,8 @@ export function CarFinder() {
                 {showMap && savedLocation ? (
                   <CarMap
                     carLocation={savedLocation}
-                    userLocation={position}
-                    accuracy={accuracy}
+                    userLocation={effectivePosition}
+                    accuracy={effectiveAccuracy ?? undefined}
                   />
                 ) : (
                   <Arrow rotation={arrowRotation} isActive={isTracking} />
@@ -722,10 +776,10 @@ export function CarFinder() {
               </p>
             )}
             
-            {/* GPS accuracy indicator */}
-            {accuracy && arrivalStatus !== 'found' && (
+            {/* GPS/Google accuracy indicator */}
+            {effectiveAccuracy && arrivalStatus !== 'found' && (
               <p className="text-xs text-muted-foreground/70">
-                GPS: ±{Math.round(accuracy * 3.28084)}ft
+                {superPreciseEnabled && isGooglePolling ? '✨ Super Precise' : 'GPS'}: ±{Math.round(effectiveAccuracy * 3.28084)}ft
               </p>
             )}
             
