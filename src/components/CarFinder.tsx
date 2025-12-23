@@ -27,6 +27,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Arrow } from './Arrow';
 import { CarMap } from './CarMap';
+import { SuperPreciseSettings } from './SuperPreciseSettings';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { useDeviceOrientation } from '../hooks/useDeviceOrientation';
 import {
@@ -47,6 +48,10 @@ import {
   showCarSavedNotification,
   dismissCarNotification,
 } from '../utils/notifications';
+import {
+  getSuperPreciseMode,
+  getGoogleGeolocation,
+} from '../utils/googleGeolocation';
 import { Button } from '@/components/ui/button';
 import { MapPin, Navigation, Trash2, Compass, Map as MapIcon, AlertTriangle, Check } from 'lucide-react';
 import { toast } from 'sonner';
@@ -102,6 +107,16 @@ export function CarFinder() {
    * Loading state for location capture
    */
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  
+  /**
+   * Super Precise Mode state
+   */
+  const [superPreciseEnabled, setSuperPreciseEnabled] = useState<boolean>(false);
+  
+  // Load Super Precise Mode setting on mount
+  useEffect(() => {
+    setSuperPreciseEnabled(getSuperPreciseMode());
+  }, []);
   
   // =========================================================================
   // CUSTOM HOOKS
@@ -290,11 +305,65 @@ export function CarFinder() {
     setIsSaving(true);
     
     try {
-      // Take 3 readings and pick the best one
+      let location: SavedLocation;
+      
+      // Try Super Precise Mode first if enabled
+      if (superPreciseEnabled) {
+        try {
+          toast.info('Using Super Precise Mode...', {
+            description: 'Fetching enhanced location from Google.',
+          });
+          
+          const googleLocation = await getGoogleGeolocation();
+          
+          if (googleLocation) {
+            location = {
+              latitude: googleLocation.latitude,
+              longitude: googleLocation.longitude,
+              timestamp: Date.now(),
+              accuracy: googleLocation.accuracy,
+            };
+            
+            const saved = saveCarLocation(location);
+            
+            if (saved) {
+              setSavedLocation(location);
+              if ('vibrate' in navigator) {
+                navigator.vibrate([50, 30, 50, 30, 50]);
+              }
+              const accuracyFeet = Math.round(googleLocation.accuracy * 3.28084);
+              toast.success('Car location saved! (Super Precise)', {
+                description: `Precision: ±${accuracyFeet}ft • Caching map tiles...`,
+              });
+              
+              // Pre-cache map tiles
+              if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                  type: 'CACHE_TILES',
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  zoom: 17,
+                });
+              }
+              
+              showCarSavedNotification();
+              setIsSaving(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('[CarFinder] Google Geolocation failed, falling back to GPS:', err);
+          toast.warning('Super Precise Mode failed', {
+            description: 'Falling back to standard GPS.',
+          });
+        }
+      }
+      
+      // Standard GPS fallback (or primary if Super Precise is disabled)
       const bestReading = await getBestReading(3);
       
       if (bestReading) {
-        const location: SavedLocation = {
+        location = {
           latitude: bestReading.coords.latitude,
           longitude: bestReading.coords.longitude,
           timestamp: Date.now(),
@@ -305,7 +374,6 @@ export function CarFinder() {
         
         if (saved) {
           setSavedLocation(location);
-          // Haptic feedback on successful save
           if ('vibrate' in navigator) {
             navigator.vibrate([50, 30, 50]);
           }
@@ -324,7 +392,6 @@ export function CarFinder() {
             });
           }
           
-          // Show persistent notification with "Find Car" action
           showCarSavedNotification();
         } else {
           toast.error('Failed to save location', {
@@ -340,7 +407,7 @@ export function CarFinder() {
     } finally {
       setIsSaving(false);
     }
-  }, [getBestReading]);
+  }, [getBestReading, superPreciseEnabled]);
   
   /**
    * Handle starting navigation mode
@@ -431,7 +498,10 @@ export function CarFinder() {
   // =========================================================================
   
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-background relative">
+      {/* Settings Button */}
+      <SuperPreciseSettings onModeChange={setSuperPreciseEnabled} />
+      
       {/* 
         HEADER SECTION
         App title and status indicators
@@ -445,6 +515,11 @@ export function CarFinder() {
             ? 'Save your car location' 
             : 'Navigate to your car'}
         </p>
+        {superPreciseEnabled && mode === 'set' && (
+          <span className="inline-flex items-center gap-1 text-xs text-primary mt-1">
+            ✨ Super Precise Mode Active
+          </span>
+        )}
       </header>
       
       {/* 
