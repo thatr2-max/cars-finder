@@ -153,11 +153,3 @@ All colors are defined as CSS variables in `index.css` and referenced via Tailwi
 - Edge
 
 Note: Device orientation (compass) may not work on all devices or browsers. Simple Mode provides a fallback.
-
----
-
-## Lovable Project Info
-
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share → Publish to deploy.
